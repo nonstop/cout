@@ -3,6 +3,7 @@ Colorize Output
 
 Author: Evgeny Ratnikov (ratnikov dot ev at gmail dot com)
 
+![cout](https://user-images.githubusercontent.com/22714/147844367-d1557543-fc76-42cb-b4a9-d146d6fdc6b4.png)
 
 ## Description
 
