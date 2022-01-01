@@ -1,0 +1,211 @@
+#!/usr/bin/env python3
+#
+# cout - colorize commands output
+#
+# Author   : Evgeny Ratnikov <ratnikov.ev@gmail.com>
+
+#
+#  LICENSE
+#
+# Copyright (c) 2008 Evgeny Ratnikov
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+import configparser
+import re
+import os
+import string
+import sys
+
+from subprocess import Popen
+from subprocess import PIPE
+from subprocess import STDOUT
+
+class ExecRunner(object):
+    __proc = None
+    def __init__(self, execCmd, args):
+        exec_cmd = [execCmd] + args
+        self.__proc = Popen(exec_cmd, stdout=PIPE, stderr=STDOUT, close_fds=True)
+    def readline(self):
+        return self.__proc.stdout.readline()
+    def close(self):
+        self.__proc.stdout.close()
+        return self.__proc.wait()
+
+NAME='cout'
+VERSION='1.0.6'
+
+default = ''
+fgcols = {}
+bgcols = {}
+fgcolsBold = {}
+
+def initColors(colorsFile):
+    if not os.path.exists(colorsFile):
+        return
+    conf = configparser.ConfigParser()
+    conf.read_file(open(colorsFile))
+
+    global default
+    default = conf.get('default', 'nocolor')
+    global fgcols, fgcolsBold, bgcols
+    fgcols[None] = ''
+    fgcolsBold[None] = ''
+    bgcols[None] = ''
+    sections = {'normal' : fgcols, 'bold' : fgcolsBold, 'background' : bgcols}
+    for sect in sections:
+        if (conf.has_section(sect)):
+            for opt in conf.options(sect):
+                sections[sect][opt] = conf.get(sect, opt)
+
+class LinePrinter:
+    __line = ""
+    def __init__(self, l):
+        self.__l = l
+    def printLine(self):
+        print("%s" % (self.__l))
+
+class ColorLinePrinter:
+    __line = ""
+    __cc = None
+    def __init__(self, l, cc):
+        self.__l = l
+        self.__cc = cc
+    def printLine(self):
+        if self.__cc.bold:
+            print(f"{bgcols[self.__cc.bgcol]}{fgcolsBold[self.__cc.fgcol]}{self.__l}{default}")
+        else:
+            print(f"{bgcols[self.__cc.bgcol]}{fgcols[self.__cc.fgcol]}{self.__l}{default}")
+
+class ColorClass:
+    def __init__(self):
+        self.fgcol = None
+        self.bgcol = None
+        self.bold = None
+        self.matchStr = ""
+    def __str__(self):
+        return 'fgcol=%s  bgcol=%s  bold=%s\nmatch: %s' % (self.fgcol, self.bgcol, self.bold, self.matchStr)
+    def colorize(self, word):
+        str = ''
+        if self.bold:
+            str += fgcolsBold[self.fgcol]
+        else:
+            str += fgcols[self.fgcol]
+        if self.bgcol:
+            str += bgcols[self.bgcol]
+        str += word + default
+        return str
+
+class Colorer:
+    __words = {}
+    __lineMods = {}
+    __loader = {
+        'word modifiers' : __words, 
+        'line modifiers' : __lineMods}
+    __defaultColors = None
+    __conf = None
+    def __init__(self, cp):
+        self.__conf = cp
+        self.__defaultColors = self.readColorClass('default')
+
+        for sect in self.__loader:
+            if self.__conf.has_section(sect):
+                for opt in self.__conf.options(sect):
+                    cc = self.readColorClass(opt)
+                    cc.matchStr = self.__conf.get(sect, opt)
+                    self.__loader[sect][opt] = cc
+
+    def readColorClass(self, name):
+        cc = ColorClass()
+        if self.__conf.has_section(name):
+            for opt in self.__conf.options(name):
+                if opt == 'bold':
+                    cc.bold = self.__conf.get(name, opt)
+                elif opt == 'fgcolor':
+                    cc.fgcol = self.__conf.get(name, opt)
+                elif opt == 'bgcolor':
+                    cc.bgcol = self.__conf.get(name, opt)
+        return cc
+
+    def processLine(self, l):
+        for lineMod in sorted(self.__lineMods):
+            cc = self.__lineMods[lineMod]
+            if re.match(cc.matchStr, l):
+                return ColorLinePrinter(l, cc)
+
+        words = list(l.split())
+
+        if not len(words):
+            return LinePrinter('')
+
+        lineChanged = False
+        for suf in self.__words:
+            for ind in range(len(words)):
+                if re.match(self.__words[suf].matchStr, words[ind]):
+                    words[ind] = self.__words[suf].colorize(words[ind])
+                    lineChanged = True
+
+        if lineChanged:
+            return LinePrinter(' '.join(words))
+        else:
+            return LinePrinter(l)
+
+class DummyColorer:
+    'stub when stdout is not a TTY'
+    def processLine(self, l):
+        return LinePrinter(l)
+
+def usage():
+    print("""Usage:
+    cout config-file [args]""")
+
+def main(argv):
+    if not argv:
+        argv = sys.argv
+    if len(argv) < 2:
+        usage()
+        return 1
+
+    initColors('/usr/share/%s-%s/colors' % (NAME, VERSION))
+    initColors(os.environ.get('HOME') + '/.cout/colors')
+
+    cp = configparser.ConfigParser()
+    cp.read_file(open(argv[1]))
+    executable = cp.get('default', 'executable')
+
+    if (not os.isatty(sys.stdout.fileno())) :
+        clr = DummyColorer()
+    else:
+        clr = Colorer(cp)
+    # be careful about arguments with spaces
+    er = ExecRunner(executable, sys.argv[2:])
+    try:
+        l = er.readline()
+        while len(l) :
+            l = l[:-1]
+            clr.processLine(l.decode()).printLine()
+            sys.stdout.flush()
+            l = er.readline()
+    except KeyboardInterrupt:
+        None
+    return er.close()
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
+

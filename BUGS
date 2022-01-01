@@ -1,0 +1,7 @@
+removes additional spaces:
+    normal output:
+        gcc scr1.c -o     scr1.o
+    when using cout:
+        gcc scr1.c -o scr1.o
+
+

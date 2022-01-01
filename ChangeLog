@@ -1,0 +1,17 @@
+version 1.0.6 - 01.01.2022
+	drop support for python2, now cout requires python version >= 3.6
+version 1.0.5 - 01.07.2011
+	removed default black bgcolor and grey fgcolor, because of problems with
+	custom terminal color schemes
+version 1.0.4 - 20.05.2009
+	apply colors also to stderr
+version 1.0.3 - 15.05.2009
+	do not lose return value
+version 1.0.2 - 13.05.2009
+	added Python 2.6 support
+version 1.0.1 - 04.06.2008
+	no color when stdout is not a tty
+	added highlight scheme for diff
+version 1.0 - 27.05.2008
+	support for make/gcc and svn
+

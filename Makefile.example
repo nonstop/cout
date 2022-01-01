@@ -1,0 +1,31 @@
+PHONY: all libs make
+
+src1.o:
+	@echo "gcc scr1.c -o     scr1.o"
+src2.o:
+	@echo "g++ src2.cpp -o build-2/scr2.o"
+src3.o:
+	@echo "icc src/src3.cc -o .build/src3.o"
+
+objs: src2.o src1.o src3.o
+
+libs: objs
+	@echo "ld src1.o src2.o .build/src3.o lib23.a"
+
+error:
+	@echo "src/testFile2.cpp: error in subdir"
+	sleep 3
+	@echo "testFile.cpp:1234: error: test error text"
+	@echo "testFile.hpp:124: error: test error text"
+
+warning:
+	@echo "testFile22.cpp:1234: warning: test warning text"
+	@echo "testFile22.h:4: warning: test warning text"
+
+make:
+	@echo "make: hello from make"
+	@echo "make[3]: Yeah make[3]"
+	@echo "make_nocolor: no color for this"
+
+all: libs error warning make
+	@echo "make all"
